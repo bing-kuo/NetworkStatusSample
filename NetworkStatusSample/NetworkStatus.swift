@@ -20,7 +20,6 @@ class NetworkStatus: ObservableObject {
             guard let self = self else { return }
             DispatchQueue.main.async {
                 self.interfaceType = self.checkInterfaceType(path)
-                print(self.interfaceType!)
             }
         }
     }
