@@ -17,13 +17,18 @@ class ViewController: UIViewController {
         view.spacing = 12
         return view
     }()
-    lazy var reachableView: ItemView = {
-        let view = ItemView(frame: .zero, title: "Connect", imageName: "antenna.radiowaves.left.and.right")
+    lazy var wifiView: ItemView = {
+        let view = ItemView(frame: .zero, title: "WiFi", imageName: "wifi")
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
+    lazy var cellularView: ItemView = {
+        let view = ItemView(frame: .zero, title: "Cellular", imageName: "antenna.radiowaves.left.and.right")
         view.translatesAutoresizingMaskIntoConstraints = false
         return view
     }()
     lazy var unreachableView: ItemView = {
-        let view = ItemView(frame: .zero, title: "No Connect", imageName: "antenna.radiowaves.left.and.right.slash")
+        let view = ItemView(frame: .zero, title: "No Connect", imageName: "xmark.octagon")
         view.translatesAutoresizingMaskIntoConstraints = false
         return view
     }()
@@ -33,24 +38,28 @@ class ViewController: UIViewController {
 
         setupUI()
 
-        NotificationCenter.default.addObserver(self, selector: #selector(networkReachable), name: .networkReachable, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(networkUnreachable), name: .networkUnreachable, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(networkStatusChanged), name: .networkStatusChanged, object: nil)
 
-        if NetworkStatus.shared.isReachable {
-            networkReachable()
-        } else {
-            networkUnreachable()
-        }
+        setupNetworkStatusUI(NetworkStatus.shared.status)
     }
 
-    @objc func networkReachable() {
-        reachableView.setEnable(true)
+    @objc func networkStatusChanged(_ notification: Notification) {
+        guard let networkStatus = notification.object as? NetworkStatus else { return }
+        setupNetworkStatusUI(networkStatus.status)
+    }
+
+    private func setupNetworkStatusUI(_ status: NetworkStatus.InterfaceType) {
+        wifiView.setEnable(false)
+        cellularView.setEnable(false)
         unreachableView.setEnable(false)
-    }
-
-    @objc func networkUnreachable() {
-        reachableView.setEnable(false)
-        unreachableView.setEnable(true)
+        switch status {
+        case .unknown:
+            unreachableView.setEnable(true)
+        case .wifi:
+            wifiView.setEnable(true)
+        case .cellular:
+            cellularView.setEnable(true)
+        }
     }
 }
 
@@ -59,7 +68,8 @@ private extension ViewController {
         view.backgroundColor = .white
 
         view.addSubview(stackView)
-        stackView.addArrangedSubview(reachableView)
+        stackView.addArrangedSubview(wifiView)
+        stackView.addArrangedSubview(cellularView)
         stackView.addArrangedSubview(unreachableView)
 
         NSLayoutConstraint.activate([

@@ -8,13 +8,29 @@
 import Foundation
 import SystemConfiguration
 
+extension NetworkStatus {
+    enum InterfaceType {
+        case unknown
+        case wifi
+        case cellular
+    }
+}
+
 class NetworkStatus {
     static let shared = NetworkStatus()
 
-    private(set) var isReachable: Bool = false
-    private var isRunning = false
-    private var reachability: SCNetworkReachability?
+    var isReachable: Bool { flags?.contains(.reachable) ?? false }
+    var isWWAN: Bool { flags?.contains(.isWWAN) ?? false }
+
     private let reachabilitySerialQueue = DispatchQueue(label: "reachability_queue")
+    private var flags: SCNetworkReachabilityFlags?
+    private var reachability: SCNetworkReachability?
+    private var isRunning = false
+    private(set) var status: InterfaceType = .unknown {
+        didSet {
+            NotificationCenter.default.post(name: .networkStatusChanged, object: self)
+        }
+    }
 
     private init() {
         var zeroAddress = sockaddr()
@@ -62,7 +78,6 @@ class NetworkStatus {
 
             var flags = SCNetworkReachabilityFlags()
             if !SCNetworkReachabilityGetFlags(reachability, &flags) {
-                print("SCNetworkReachability get flags")
                 self.stop()
                 return
             }
@@ -79,20 +94,31 @@ class NetworkStatus {
 
         SCNetworkReachabilitySetCallback(reachability, nil, nil)
         SCNetworkReachabilitySetDispatchQueue(reachability, nil)
+        self.reachability = nil
     }
 
     private func setFlags(_ flags: SCNetworkReachabilityFlags) {
-        isReachable = flags.contains(.reachable)
+        self.flags = flags
 
-        if isReachable {
-            NotificationCenter.default.post(Notification(name: Notification.Name.networkReachable))
-        } else {
-            NotificationCenter.default.post(Notification(name: Notification.Name.networkUnreachable))
+        guard isReachable else {
+            status = .unknown
+            return
         }
+
+        #if targetEnvironment(simulator)
+            status = .wifi
+        #else
+            if isReachable && !isWWAN {
+                status = .wifi
+            } else if isWWAN {
+                status = .cellular
+            } else {
+                status = .unknown
+            }
+        #endif
     }
 }
 
 extension Notification.Name {
-    static let networkReachable = Notification.Name("networkReachable")
-    static let networkUnreachable = Notification.Name("networkUnreachable")
+    static let networkStatusChanged = Notification.Name("networkStatusChanged")
 }
